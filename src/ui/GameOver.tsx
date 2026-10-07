@@ -2,39 +2,62 @@ import { useEffect } from "react";
 import { useUI } from "../game/store";
 import { engine } from "../game/engine";
 import { sfx } from "../game/audio";
-import { BreadIcon } from "./BreadIcon";
 
-/** Label singkat penyebab tumbang — dirasionalkan jadi caption kecil di bawah judul. */
-const CAUSE_LABEL: Record<string, string> = {
-  obstacle: "NUBRUK RINTANGAN",
-  car: "KETABRAK MOBIL",
-  oncoming: "MOBIL DARI ARAH DEPAN",
-  motorcycle: "MOTOR DARI ARAH DEPAN",
-  chicken: "AYAM NGEBUT",
-  train: "KERETA LEWAT",
-  gate: "PALANG TUTUP",
-  pedestrian: "NUBRUK PEJALAN KAKI",
-  roadwork: "AREA PROYEK",
-  cross_traffic: "TABRAKAN DI PEREMPATAN",
-};
+/* ---------- Ikon pixel-art putih ala Crossy Road (digambar manual, chunky) ---------- */
+
+/** Mahkota — tombol kiri (menu utama). */
+function CrownIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} shapeRendering="crispEdges" fill="#ffffff" aria-hidden="true">
+      {/* tiga puncak mahkota (tengah lebih tinggi) */}
+      <rect x="3" y="2" width="2" height="5" />
+      <rect x="7" y="1" width="2" height="6" />
+      <rect x="11" y="2" width="2" height="5" />
+      {/* badan mahkota */}
+      <rect x="3" y="7" width="10" height="2" />
+      {/* alas + dua kaki */}
+      <rect x="1" y="9" width="14" height="3" />
+      <rect x="3" y="12" width="2" height="1" />
+      <rect x="11" y="12" width="2" height="1" />
+    </svg>
+  );
+}
+
+/** Segitiga play — tombol tengah kuning (main lagi). */
+function PlayIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} shapeRendering="crispEdges" fill="#ffffff" aria-hidden="true">
+      <path d="M4.6 2.6 13.2 8 4.6 13.4Z" />
+    </svg>
+  );
+}
+
+/** Nampan + panah ke atas — tombol kanan (bagikan skor). */
+function ShareIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} shapeRendering="crispEdges" fill="#ffffff" aria-hidden="true">
+      {/* panah ke atas */}
+      <path d="M8 1.6 11.4 5.7H9.4v4.3H6.6V5.7H4.6Z" />
+      {/* nampan */}
+      <path d="M2.4 10.6h11.2v2.7a1.1 1.1 0 0 1-1.1 1.1H3.5a1.1 1.1 0 0 1-1.1-1.1Z" />
+    </svg>
+  );
+}
 
 /**
- * Layar Game Over — super simpel, instan, & TANPA GELAP:
- *  - Latar game di belakang tetap terang benderang 100% (tidak ada overlay hitam/gelap)
- *  - Skor langsung tampil utuh tanpa menunggu hitungan lambat
- *  - Tombol MAIN LAGI langsung aktif & bisa langsung ditap / tekan Spasi
+ * Layar Game Over — persis gaya Crossy Road:
+ *  - Latar game digelapkan tipis biar panel skor menonjol
+ *  - Judul "GAME OVER" huruf pixel putih + outline hitam tebal
+ *  - Panel skor gelap: SCORE / angka kuning / BEST
+ *  - Tiga tombol chunky: mahkota (menu) · main lagi (kuning, besar) · bagikan
  */
 export function GameOver() {
   const phase = useUI((s) => s.phase);
   const score = useUI((s) => s.score);
   const best = useUI((s) => s.best);
-  const bread = useUI((s) => s.bread);
   const isNewBest = useUI((s) => s.isNewBest);
-  const cause = useUI((s) => s.crashCause);
-  const wordHunt = useUI((s) => s.wordHunt);
-  const setShowMysteryBox = useUI((s) => s.setShowMysteryBox);
 
-  // Efek suara instan saat layar game over muncul
+  // Efek suara saat layar game over muncul
   useEffect(() => {
     if (phase !== "gameover") return;
     try {
@@ -50,8 +73,6 @@ export function GameOver() {
 
   if (phase !== "gameover") return null;
 
-  const canOpen = wordHunt.pendingBox || (wordHunt.collected.every(Boolean) && !wordHunt.claimed);
-
   const handleRetry = () => {
     sfx.click();
     engine.startRun();
@@ -62,77 +83,69 @@ export function GameOver() {
     engine.toMenu();
   };
 
+  const handleShare = async () => {
+    sfx.click();
+    const text = `Pigeon SK8 — skor ${score.toLocaleString()} (best ${best.toLocaleString()}) 🛹`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Pigeon SK8", text, url: window.location.href });
+      } else {
+        await navigator.clipboard?.writeText(`${text} ${window.location.href}`);
+      }
+    } catch {
+      // dibatalkan / tidak didukung — abaikan
+    }
+  };
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex select-none items-center justify-center p-4">
-      {/* TIDAK ADA overlay gelap: game di belakang tetap terang benderang */}
-      <div className="card-in pointer-events-auto relative w-[82%] max-w-[340px] overflow-hidden rounded-3xl bg-white/95 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.35),0_0_0_1px_rgba(255,255,255,0.8)] backdrop-blur-md">
-        {/* Judul & Penyebab Tabrakan */}
-        <div className="font-display text-[clamp(24px,6cqw,36px)] leading-none text-[#ff4757] txt-outline-sm drop-shadow-sm">
+    <div className="pointer-events-none absolute inset-0 z-20 flex select-none flex-col items-center justify-center">
+      {/* Latar digelapkan tipis ala Crossy Road */}
+      <div className="absolute inset-0 bg-black/40" />
+
+      <div className="pointer-events-auto relative flex w-full flex-col items-center px-6">
+        {/* Judul pixel putih + outline hitam tebal */}
+        <h1 className="go-title go-wobble font-display text-[clamp(26px,8.5cqw,42px)] leading-none text-white">
           GAME OVER
-        </div>
+        </h1>
 
-        <div className="mt-1.5 flex justify-center">
-          <span className="rounded-full bg-[#ffe8e8] px-3 py-0.5 font-body text-[11px] font-extrabold tracking-wider text-[#d63031]">
-            {CAUSE_LABEL[cause] ?? "TUMBANG!"}
-          </span>
-        </div>
-
-        {/* Kotak Skor Utama — langsung tampil */}
-        <div className="relative mt-3.5 rounded-2xl bg-[#1a1f2c] px-4 py-3 text-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
-          {isNewBest && (
-            <div className="absolute -top-2.5 right-3 rounded-full bg-gradient-to-r from-[#ffd21f] to-[#ff9f1c] px-2.5 py-0.5 font-display text-[9px] tracking-wider text-[#1a1f2c] shadow-md">
-              ★ NEW BEST!
-            </div>
-          )}
-          <div className="font-body text-[10px] font-extrabold tracking-[0.25em] text-white/60">
-            SCORE
-          </div>
-          <div className="font-display text-[clamp(32px,9cqw,46px)] leading-tight text-[#ffd21f] [text-shadow:0_2px_0_rgba(120,72,0,0.5)]">
+        {/* Panel skor gelap */}
+        <div className="card-in mt-[5cqw] w-[70%] max-w-[320px] rounded-[20px] bg-[#262b36] px-6 py-5 text-center shadow-[0_6px_0_rgba(0,0,0,0.28),0_14px_28px_rgba(0,0,0,0.35)]">
+          <div className="font-body text-[11px] font-black tracking-[0.3em] text-white">SCORE</div>
+          <div className="go-numpop mt-0.5 font-display text-[clamp(38px,12cqw,54px)] leading-[1.15] text-[#ffd23f]">
             {score.toLocaleString()}
           </div>
-          <div className="mt-1 flex items-center justify-center gap-3 border-t border-white/10 pt-2 font-body text-xs font-bold text-white/80">
-            <span>
-              BEST <strong className="text-white">{best.toLocaleString()}</strong>
-            </span>
-            {bread > 0 && (
-              <span className="flex items-center gap-1 text-[#ffd21f]">
-                <BreadIcon size={14} />
-                +{bread}
-              </span>
-            )}
+          <div className="mt-1 font-body text-[12px] font-extrabold tracking-wide text-white">
+            BEST {best.toLocaleString()}
           </div>
         </div>
 
-        {/* Word Hunt singkat hanya bila box siap dibuka */}
-        {canOpen && (
-          <button
-            type="button"
-            onClick={() => {
-              sfx.click();
-              setShowMysteryBox(true);
-            }}
-            className="mt-2.5 flex w-full animate-pulse items-center justify-between rounded-xl bg-gradient-to-r from-[#ffd21f] to-[#ff9f1c] px-3 py-2 text-[#1a1f2c] shadow"
-          >
-            <span className="font-body text-[11px] font-black tracking-wide">WORD HUNT SELESAI!</span>
-            <span className="font-display text-xs font-bold">BUKA BOX 🎁</span>
-          </button>
-        )}
-
-        {/* Tombol Aksi Langsung (tanpa delay) */}
-        <div className="mt-4 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="w-full rounded-2xl bg-gradient-to-b from-[#2ec4b6] to-[#20a396] py-3.5 font-display text-[clamp(14px,3.8cqw,18px)] leading-none text-white shadow-[0_5px_0_#178076] transition-transform active:translate-y-[3px] active:shadow-[0_2px_0_#178076]"
-          >
-            MAIN LAGI ↺
-          </button>
+        {/* Baris tombol: mahkota · MAIN LAGI (kuning besar) · bagikan */}
+        <div className="mt-[7cqw] flex items-center justify-center gap-[3.5cqw]">
           <button
             type="button"
             onClick={handleMenu}
-            className="w-full rounded-2xl bg-[#f1f4f8] py-2.5 font-display text-[clamp(11px,2.9cqw,14px)] leading-none text-[#57606f] shadow-[0_3px_0_#dcdde1] transition-transform active:translate-y-[2px] active:shadow-[0_1px_0_#dcdde1]"
+            aria-label="Menu utama"
+            className="flex h-[13cqw] w-[14cqw] items-center justify-center rounded-[14px] bg-[#3ea8f0] shadow-[0_4px_0_#1d7cc4,0_8px_14px_rgba(0,0,0,0.3)] transition-transform active:translate-y-[3px] active:shadow-[0_1px_0_#1d7cc4]"
           >
-            MENU UTAMA
+            <CrownIcon className="h-[44%] w-[44%] drop-shadow-sm" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRetry}
+            aria-label="Main lagi"
+            className="flex h-[13cqw] w-[27cqw] items-center justify-center rounded-[14px] bg-[#ffd23f] shadow-[0_4px_0_#d9a40f,0_8px_14px_rgba(0,0,0,0.3)] transition-transform active:translate-y-[3px] active:shadow-[0_1px_0_#d9a40f]"
+          >
+            <PlayIcon className="h-[40%] w-[40%] drop-shadow-sm" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Bagikan skor"
+            className="flex h-[13cqw] w-[14cqw] items-center justify-center rounded-[14px] bg-[#3ea8f0] shadow-[0_4px_0_#1d7cc4,0_8px_14px_rgba(0,0,0,0.3)] transition-transform active:translate-y-[3px] active:shadow-[0_1px_0_#1d7cc4]"
+          >
+            <ShareIcon className="h-[46%] w-[46%] drop-shadow-sm" />
           </button>
         </div>
       </div>

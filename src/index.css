@@ -169,6 +169,13 @@ body,
   }
 }
 
+/* Judul GAME OVER ala Crossy Road: huruf pixel PUTIH + outline hitam tebal (tanpa ekstrusi 3D). */
+.go-title {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.13em #11151f;
+  text-shadow: 0 0.05em 0 #11151f;
+}
+
 /* ---------- GAME OVER hypercasual juice ---------- */
 /* Badge NEW BEST model STARBURST gigi bintang (tanpa glow) */
 .go-starburst {
