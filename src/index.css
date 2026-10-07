@@ -176,6 +176,15 @@ body,
   text-shadow: 0 0.05em 0 #11151f;
 }
 
+/* Sembunyikan scrollbar native (barisan karakter/papan digulir pakai gesture) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Pita biru seleksi karakter ala Crossy Road: sisi bawah berlekuk + lipatan gelap di sudut. */
 .ribbon-banner {
   position: relative;

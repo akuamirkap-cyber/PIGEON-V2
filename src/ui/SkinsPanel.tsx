@@ -324,95 +324,8 @@ export function SkinsPanel() {
         </div>
       </div>
 
-      {/* Area tengah: barisan item (bisa digulir) + preview besar + nama di bawah */}
-      <div className="relative flex-1 overflow-hidden">
-        <div
-          ref={stripRef}
-          className="absolute inset-x-0 top-[44%] flex items-center gap-1.5 overflow-x-auto px-[50%] py-3"
-          style={{ touchAction: "pan-x" }}
-        >
-          {tab === "skins"
-            ? filteredSkins.map((s) => {
-                const sUnlocked = unlocked.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    data-active={previewId === s.id}
-                    onClick={() => {
-                      sfx.click();
-                      setPreview(s.id);
-                      engine.skinPop();
-                    }}
-                    className={`relative flex w-[11cqw] shrink-0 flex-col items-center transition-transform ${
-                      previewId === s.id ? "scale-110" : "opacity-90"
-                    }`}
-                    aria-label={s.name}
-                  >
-                    <span className={sUnlocked ? "" : "brightness-[0.35]"}>
-                      <Thumb skin={s} locked={!sUnlocked} size={44} />
-                    </span>
-                    {previewId === s.id && (
-                      <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
-                    )}
-                  </button>
-                );
-              })
-            : filteredDecks.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  data-active={previewDeckId === d.id}
-                  onClick={() => {
-                    sfx.click();
-                    setPreviewDeckId(d.id);
-                    selectDeck(d.id);
-                  }}
-                  className={`relative flex w-[13cqw] shrink-0 flex-col items-center transition-transform ${
-                    previewDeckId === d.id ? "scale-110" : "opacity-90"
-                  }`}
-                  aria-label={d.name}
-                >
-                  <DeckThumb deck={d} size={48} />
-                  {previewDeckId === d.id && (
-                    <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
-                  )}
-                </button>
-              ))}
-        </div>
-
-        {/* Preview besar + NAMA KARAKTER DI BAWAH (tidak menghalangi gulir) */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          {tab === "skins" ? (
-            <>
-              <div className="flex items-end justify-center">
-                <Thumb skin={current} locked={!isUnlocked} size={150} />
-              </div>
-              <div className="-mt-[1.5cqw] h-[2.6cqw] w-[26cqw] rounded-[50%] bg-black/15 blur-[3px]" />
-              <div className="mt-[2.5cqw] flex items-center gap-1.5">
-                {!isUnlocked && <LockIcon size={16} />}
-                <div className="go-title font-display text-[clamp(20px,6.4cqw,34px)] leading-none text-white">
-                  {current.name.toUpperCase()}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-end justify-center">
-                <DeckThumb deck={currentDeck} size={140} />
-              </div>
-              <div className="-mt-[1.5cqw] h-[2.6cqw] w-[26cqw] rounded-[50%] bg-black/15 blur-[3px]" />
-              <div className="mt-[2.5cqw] font-display text-[clamp(18px,5.6cqw,30px)] leading-none text-white [text-shadow:0_2px_0_rgba(15,40,70,0.45)]">
-                {currentDeck.name.toUpperCase()}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Kontrol bawah: filter · skala/warna · tombol bulat · SELECT */}
-      <div className="relative z-10 flex flex-col items-center gap-[2.4cqw] px-4 pb-[4cqw]">
-        {/* Filter kategori */}
+      {/* Filter kategori + kontrol kontekstual (rapi di bawah pita) */}
+      <div className="relative z-10 mt-[2.2cqw] flex flex-col items-center gap-[1.6cqw] px-3">
         <div className="flex flex-wrap items-center justify-center gap-1.5 font-display text-[2.2cqw]">
           {tab === "skins" ? (
             <>
@@ -514,7 +427,96 @@ export function SkinsPanel() {
             </button>
           </div>
         )}
+      </div>
 
+      {/* Area tengah: barisan item (bisa digulir) + preview besar + nama di bawah */}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden pb-[8%]">
+        <div className="flex w-full flex-col items-center">
+          {/* Barisan karakter/papan — kaki sejajar dengan karakter besar */}
+          <div className="relative flex w-full justify-center">
+            <div
+              ref={stripRef}
+              className="no-scrollbar pointer-events-auto absolute inset-x-0 bottom-0 flex items-end gap-2 overflow-x-auto px-[50%]"
+              style={{ touchAction: "pan-x" }}
+            >
+              {tab === "skins"
+                ? filteredSkins.map((s) => {
+                    const sUnlocked = unlocked.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        data-active={previewId === s.id}
+                        onClick={() => {
+                          sfx.click();
+                          setPreview(s.id);
+                          engine.skinPop();
+                        }}
+                        className={`relative flex w-[12.5cqw] shrink-0 flex-col items-center transition-transform ${
+                          previewId === s.id ? "scale-110" : "opacity-90"
+                        }`}
+                        aria-label={s.name}
+                      >
+                        <span className={sUnlocked ? "" : "brightness-[0.35]"}>
+                          <Thumb skin={s} locked={!sUnlocked} size={50} />
+                        </span>
+                        {previewId === s.id && (
+                          <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
+                        )}
+                      </button>
+                    );
+                  })
+                : filteredDecks.map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      data-active={previewDeckId === d.id}
+                      onClick={() => {
+                        sfx.click();
+                        setPreviewDeckId(d.id);
+                        selectDeck(d.id);
+                      }}
+                      className={`relative flex w-[14cqw] shrink-0 flex-col items-center transition-transform ${
+                        previewDeckId === d.id ? "scale-110" : "opacity-90"
+                      }`}
+                      aria-label={d.name}
+                    >
+                      <DeckThumb deck={d} size={54} />
+                      {previewDeckId === d.id && (
+                        <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
+                      )}
+                    </button>
+                  ))}
+            </div>
+            {/* Karakter/papan besar di tengah (tidak menghalangi gulir) */}
+            <div className="pointer-events-none">
+              {tab === "skins" ? (
+                <Thumb skin={current} locked={!isUnlocked} size={190} />
+              ) : (
+                <DeckThumb deck={currentDeck} size={180} />
+              )}
+            </div>
+          </div>
+
+          {/* Bayangan + NAMA KARAKTER DI BAWAH */}
+          <div className="pointer-events-none -mt-[1.5cqw] h-[2.8cqw] w-[28cqw] rounded-[50%] bg-black/15 blur-[3px]" />
+          {tab === "skins" ? (
+            <div className="pointer-events-none mt-[2.6cqw] flex items-center gap-1.5">
+              {!isUnlocked && <LockIcon size={16} />}
+              <div className="go-title font-display text-[clamp(20px,6.6cqw,34px)] leading-none text-white">
+                {current.name.toUpperCase()}
+              </div>
+            </div>
+          ) : (
+            <div className="pointer-events-none mt-[2.6cqw] font-display text-[clamp(18px,5.8cqw,30px)] leading-none text-white [text-shadow:0_2px_0_rgba(15,40,70,0.45)]">
+              {currentDeck.name.toUpperCase()}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Kontrol bawah: tombol bulat baju/skate + SELECT (persis seperti referensi) */}
+      <div className="relative z-10 flex flex-col items-center gap-[3.6cqw] px-4 pb-[5cqw]">
         {/* Tombol bulat: baju (karakter) & skate (papan) */}
         <div className="flex items-center gap-[6cqw]">
           <RoundTabButton active={tab === "skins"} yellow label="Skin karakter" onClick={() => { sfx.click(); setTab("skins"); }}>
