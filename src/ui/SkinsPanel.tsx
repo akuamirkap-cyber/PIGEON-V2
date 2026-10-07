@@ -4,7 +4,7 @@ import { getSkin, SKINS, DECKS, type Skin, type DeckOption } from "../game/skins
 import { VOXEL_BOARD_IDS } from "../game/buddiesSkins";
 import { sfx } from "../game/audio";
 import { engine } from "../game/engine";
-import { ensureThumbs, ensureDeckThumbs, getThumb, getThumbSprite, getDeckThumb, getDeckThumbSprite, onThumbsReady, onDeckThumbsReady, registerThumbSpin, THUMB_FRAME_COUNT } from "../game/thumbs";
+import { ensureThumbs, ensureDeckThumbs, getThumb, getThumbSprite, getDeckThumb, getDeckThumbSprite, onThumbsReady, onDeckThumbsReady, registerThumbSpin, THUMB_FRAME_COUNT, THUMB_BASE_F, getHeroSprite, ensureHeroThumb, onHeroReady, clearHeroCache } from "../game/thumbs";
 import { BreadIcon } from "./BreadIcon";
 import { PigeonIcon } from "./PigeonIcon";
 import { LockIcon } from "./LockIcon";
@@ -23,11 +23,38 @@ function useThumbs() {
   }, []);
 }
 
-function Thumb({ skin, locked, size }: { skin: Skin; locked: boolean; size: number }) {
+/**
+ * Ukuran tampilan. Sprite karakter/papan punya framing yang sama (kaki/roda
+ * selalu di THUMB_BASE_F tinggi sprite), jadi offset di bawah membuat kaki
+ * karakter besar dan kaki setiap item barisan jatuh di garis yang sama persis.
+ */
+const BIG = 384;
+const DECK_BIG = 300;
+const SMALL = 76;
+const DECK_SMALL = 64;
+/** Garis kaki: 58% dari atas area tengah (42% dari bawah). */
+const FEET_FROM_BOTTOM = 42;
+/** Jarak bayangan/nama di bawah garis kaki. */
+const NAME_GAP = 14;
+
+/** Offset dasar sprite dari garis kaki (bagian kosong di bawah kaki). */
+const feetOffset = (size: number) => Math.round((1 - THUMB_BASE_F) * size);
+
+function Thumb({ skin, locked, size, hero }: { skin: Skin; locked: boolean; size: number; hero?: boolean }) {
   const spinRef = useRef<HTMLSpanElement>(null);
-  const sprite = getThumbSprite(skin.id);
+  const [, force] = useState(0);
+  const heroSprite = hero ? getHeroSprite("skin", skin.id) : undefined;
+  const sprite = heroSprite ?? getThumbSprite(skin.id);
   const url = getThumb(skin.id);
   const style = locked ? { filter: "grayscale(0.85) brightness(0.8)" } : undefined;
+
+  // Preview besar: minta sprite resolusi tinggi (framing identik, jadi tidak ada yang bergeser)
+  useEffect(() => {
+    if (!hero || heroSprite) return;
+    const off = onHeroReady(() => force((n) => n + 1));
+    ensureHeroThumb("skin", skin.id);
+    return off;
+  }, [hero, skin.id, heroSprite]);
 
   useEffect(() => {
     const element = spinRef.current;
@@ -56,10 +83,20 @@ function Thumb({ skin, locked, size }: { skin: Skin; locked: boolean; size: numb
   return <PigeonIcon skin={skin} size={size} locked={locked} />;
 }
 
-function DeckThumb({ deck, size }: { deck: DeckOption; size: number }) {
+function DeckThumb({ deck, size, hero }: { deck: DeckOption; size: number; hero?: boolean }) {
   const spinRef = useRef<HTMLSpanElement>(null);
-  const sprite = getDeckThumbSprite(deck.id);
+  const [, force] = useState(0);
+  const heroSprite = hero ? getHeroSprite("deck", deck.id) : undefined;
+  const sprite = heroSprite ?? getDeckThumbSprite(deck.id);
   const url = getDeckThumb(deck.id);
+
+  // Preview besar: minta sprite resolusi tinggi (framing identik)
+  useEffect(() => {
+    if (!hero || heroSprite) return;
+    const off = onHeroReady(() => force((n) => n + 1));
+    ensureHeroThumb("deck", deck.id);
+    return off;
+  }, [hero, deck.id, heroSprite]);
 
   useEffect(() => {
     const element = spinRef.current;
@@ -211,8 +248,11 @@ export function SkinsPanel() {
 
   // Barisan karakter/papan yang sedang dipreview selalu digulir ke tengah
   useEffect(() => {
-    const el = stripRef.current?.querySelector<HTMLElement>('[data-active="true"]');
-    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    const strip = stripRef.current;
+    const el = strip?.querySelector<HTMLElement>('[data-active="true"]');
+    if (!strip || !el) return;
+    const target = el.offsetLeft + el.offsetWidth / 2 - strip.clientWidth / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "auto" });
   }, [previewId, previewDeckId, tab, skinFilter, deckFilter]);
 
   const currentDeck = DECKS.find((d) => d.id === previewDeckId) ?? DECKS[0];
@@ -267,6 +307,7 @@ export function SkinsPanel() {
     engine.skinPop();
     ensureDeckThumbs(208, true);
     ensureThumbs(208, true);
+    clearHeroCache();
     const label = WHEEL_COLORS.find((w) => w.id === c)?.label ?? "AUTO";
     addPopup(c === "auto" ? "BAN IKUT SKIN" : `BAN ${label}`, "#2ec4b6", "Warna roda skateboard");
   };
@@ -429,86 +470,84 @@ export function SkinsPanel() {
         )}
       </div>
 
-      {/* Area tengah: barisan item (bisa digulir) + preview besar + nama di bawah */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden pb-[8%]">
-        <div className="flex w-full flex-col items-center">
-          {/* Barisan karakter/papan — kaki sejajar dengan karakter besar */}
-          <div className="relative flex w-full justify-center">
-            <div
-              ref={stripRef}
-              className="no-scrollbar pointer-events-auto absolute inset-x-0 bottom-0 flex items-end gap-2 overflow-x-auto px-[50%]"
-              style={{ touchAction: "pan-x" }}
-            >
-              {tab === "skins"
-                ? filteredSkins.map((s) => {
-                    const sUnlocked = unlocked.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        data-active={previewId === s.id}
-                        onClick={() => {
-                          sfx.click();
-                          setPreview(s.id);
-                          engine.skinPop();
-                        }}
-                        className={`relative flex w-[12.5cqw] shrink-0 flex-col items-center transition-transform ${
-                          previewId === s.id ? "scale-110" : "opacity-90"
-                        }`}
-                        aria-label={s.name}
-                      >
-                        <span className={sUnlocked ? "" : "brightness-[0.35]"}>
-                          <Thumb skin={s} locked={!sUnlocked} size={50} />
-                        </span>
-                        {previewId === s.id && (
-                          <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
-                        )}
-                      </button>
-                    );
-                  })
-                : filteredDecks.map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      data-active={previewDeckId === d.id}
-                      onClick={() => {
-                        sfx.click();
-                        setPreviewDeckId(d.id);
-                        selectDeck(d.id);
-                      }}
-                      className={`relative flex w-[14cqw] shrink-0 flex-col items-center transition-transform ${
-                        previewDeckId === d.id ? "scale-110" : "opacity-90"
-                      }`}
-                      aria-label={d.name}
-                    >
-                      <DeckThumb deck={d} size={54} />
-                      {previewDeckId === d.id && (
-                        <span className="mt-0.5 h-[3px] w-[60%] rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
-                      )}
-                    </button>
-                  ))}
-            </div>
-            {/* Karakter/papan besar di tengah (tidak menghalangi gulir) */}
-            <div className="pointer-events-none">
-              {tab === "skins" ? (
-                <Thumb skin={current} locked={!isUnlocked} size={190} />
-              ) : (
-                <DeckThumb deck={currentDeck} size={180} />
-              )}
-            </div>
-          </div>
-
-          {/* Bayangan + NAMA KARAKTER DI BAWAH */}
-          <div className="pointer-events-none -mt-[1.5cqw] h-[2.8cqw] w-[28cqw] rounded-[50%] bg-black/15 blur-[3px]" />
+      {/* Area tengah: karakter besar + barisan item bertumpu pada garis kaki yang sama */}
+      <div className="relative flex-1 overflow-hidden">
+        {/* Karakter/papan besar — kaki tepat di garis, di belakang barisan item */}
+        <div
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+          style={{ bottom: `calc(${FEET_FROM_BOTTOM}% + ${feetOffset(tab === "skins" ? BIG : DECK_BIG)}px)` }}
+        >
           {tab === "skins" ? (
-            <div className="pointer-events-none mt-[2.6cqw] flex items-center gap-1.5">
+            <Thumb skin={current} locked={!isUnlocked} size={BIG} hero />
+          ) : (
+            <DeckThumb deck={currentDeck} size={DECK_BIG} hero />
+          )}
+        </div>
+
+        {/* Barisan karakter/papan — kaki sejajar dengan karakter besar */}
+        <div
+          ref={stripRef}
+          className="no-scrollbar pointer-events-auto absolute inset-x-0 flex items-end gap-2 overflow-x-auto px-[50%]"
+          style={{
+            bottom: `calc(${FEET_FROM_BOTTOM}% + ${feetOffset(tab === "skins" ? SMALL : DECK_SMALL)}px)`,
+            touchAction: "pan-x",
+          }}
+        >
+          {tab === "skins"
+            ? filteredSkins.map((s) => {
+                const sUnlocked = unlocked.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    data-active={previewId === s.id}
+                    onClick={() => {
+                      sfx.click();
+                      setPreview(s.id);
+                      engine.skinPop();
+                    }}
+                    className="relative flex w-[19.5cqw] shrink-0 flex-col items-center"
+                    aria-label={s.name}
+                  >
+                    <span className={sUnlocked ? "" : "brightness-[0.35]"}>
+                      <Thumb skin={s} locked={!sUnlocked} size={SMALL} />
+                    </span>
+                  </button>
+                );
+              })
+            : filteredDecks.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  data-active={previewDeckId === d.id}
+                  onClick={() => {
+                    sfx.click();
+                    setPreviewDeckId(d.id);
+                    selectDeck(d.id);
+                  }}
+                  className="relative flex w-[16.5cqw] shrink-0 flex-col items-center"
+                  aria-label={d.name}
+                >
+                  <DeckThumb deck={d} size={DECK_SMALL} />
+                </button>
+              ))}
+        </div>
+
+        {/* Bayangan + NAMA tepat di bawah garis kaki */}
+        <div
+          className="pointer-events-none absolute inset-x-0 flex flex-col items-center"
+          style={{ top: `calc(${100 - FEET_FROM_BOTTOM}% + ${NAME_GAP}px)` }}
+        >
+          <div className="h-[3.4cqw] w-[62cqw] rounded-[50%] bg-black/15 blur-[3px]" />
+          {tab === "skins" ? (
+            <div className="mt-[2.6cqw] flex items-center gap-1.5">
               {!isUnlocked && <LockIcon size={16} />}
               <div className="go-title font-display text-[clamp(20px,6.6cqw,34px)] leading-none text-white">
                 {current.name.toUpperCase()}
               </div>
             </div>
           ) : (
-            <div className="pointer-events-none mt-[2.6cqw] font-display text-[clamp(18px,5.8cqw,30px)] leading-none text-white [text-shadow:0_2px_0_rgba(15,40,70,0.45)]">
+            <div className="mt-[2.6cqw] font-display text-[clamp(18px,5.8cqw,30px)] leading-none text-white [text-shadow:0_2px_0_rgba(15,40,70,0.45)]">
               {currentDeck.name.toUpperCase()}
             </div>
           )}
