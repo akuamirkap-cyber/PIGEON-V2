@@ -1,7 +1,7 @@
 import type { Part } from "./voxel";
 
 /**
- * Model karakter NON-MERPATI (kucing oranye berdiri, flamingo, gagak).
+ * Model karakter NON-MERPATI (kucing oranye berdiri, gagak).
  *
  * Semua model dibuat dengan ANCHOR yang sama seperti merpati supaya rig yang sudah ada
  * (kaki IK, sayap/lengan, ekor, kepala yang memantau jalan) langsung bisa dipakai:
@@ -134,89 +134,6 @@ export function catLegParts(k: CharPalette, seg: "thigh" | "shin" | "foot", thig
     { x: 0.17, y: 0.03, z: -0.06, w: 0.09, h: 0.06, d: 0.06, color: k.cere },
     { x: 0.2, y: 0.03, z: 0, w: 0.09, h: 0.06, d: 0.06, color: k.cere },
     { x: -0.12, y: 0.03, z: 0, w: 0.08, h: 0.06, d: 0.08, color: k.belly },
-  ];
-}
-
-/* =============================== FLAMINGO =============================== */
-
-/** Badan flamingo: badan gempal kecil + leher panjang melengkung (leher = bagian badan, bukan kepala). */
-export function flamingoBodyParts(k: CharPalette): Part[] {
-  const pale = k.belly;
-  return [
-    // badan (lebih kecil dari merpati karena lehernya yang panjang)
-    { x: 0.0, y: 0.4, z: 0, w: 0.74, h: 0.3, d: 0.56, color: k.body },
-    { x: -0.1, y: 0.6, z: 0, w: 0.6, h: 0.18, d: 0.5, color: k.body },
-    // dada & perut lebih terang
-    { x: 0.32, y: 0.4, z: 0, w: 0.16, h: 0.26, d: 0.44, color: pale },
-    { x: 0.06, y: 0.27, z: 0, w: 0.5, h: 0.12, d: 0.48, color: pale },
-    // bulu ekor belakang dengan ujung gelap
-    { x: -0.36, y: 0.5, z: 0, w: 0.34, h: 0.24, d: 0.46, color: k.tail },
-    { x: -0.56, y: 0.6, z: 0, w: 0.24, h: 0.18, d: 0.4, color: k.tailTip },
-    // LEHER PANJANG: naik dari dada, sedikit S, sampai sendi kepala (0.32, 1.04)
-    { x: 0.26, y: 0.66, z: 0, w: 0.19, h: 0.2, d: 0.22, color: k.body },
-    { x: 0.3, y: 0.82, z: 0, w: 0.17, h: 0.18, d: 0.2, color: k.body },
-    { x: 0.28, y: 0.96, z: 0, w: 0.16, h: 0.16, d: 0.19, color: k.body },
-    { x: 0.3, y: 1.06, z: 0, w: 0.15, h: 0.12, d: 0.18, color: k.body },
-    // gelang warna di pangkal leher
-    { x: 0.27, y: 0.74, z: 0, w: 0.2, h: 0.05, d: 0.23, color: k.wingTip },
-  ];
-}
-
-/** Kepala flamingo kecil + paruh panjang yang melengkung ke bawah dengan ujung hitam. */
-export function flamingoHeadParts(k: CharPalette): Part[] {
-  return [
-    { x: 0.0, y: 0.0, z: 0, w: 0.28, h: 0.26, d: 0.28, color: k.head },
-    { x: 0.11, y: -0.03, z: 0, w: 0.14, h: 0.18, d: 0.24, color: k.belly }, // muka pucat
-    { x: 0.13, y: 0.08, z: 0.1, w: 0.05, h: 0.08, d: 0.06, color: "#20242c" }, // mata
-    { x: 0.13, y: 0.08, z: -0.1, w: 0.05, h: 0.08, d: 0.06, color: "#20242c" },
-    // paruh melengkung ke bawah: 3 segmen
-    { x: 0.2, y: -0.03, z: 0, w: 0.2, h: 0.11, d: 0.13, rz: -0.22, color: k.beak },
-    { x: 0.38, y: -0.11, z: 0, w: 0.18, h: 0.1, d: 0.12, rz: -0.7, color: k.beak },
-    { x: 0.46, y: -0.24, z: 0, w: 0.13, h: 0.09, d: 0.11, rz: -1.1, color: "#20242c" }, // ujung hitam
-    // sedikit jambul
-    { x: -0.04, y: 0.16, z: 0, w: 0.16, h: 0.08, d: 0.16, color: k.wingTip },
-  ];
-}
-
-/** Sayap flamingo: panel panjang ramping, ujung lebih gelap (khas flamingo). */
-export function flamingoWingParts(k: CharPalette, side: 1 | -1): Part[] {
-  const z = 0.05 * side;
-  return [
-    { x: -0.04, y: -0.16, z, w: 0.74, h: 0.3, d: 0.1, color: k.wing },
-    { x: -0.1, y: -0.3, z, w: 0.66, h: 0.06, d: 0.11, color: k.wingTip },
-    { x: -0.46, y: -0.1, z, w: 0.26, h: 0.16, d: 0.1, color: k.wingTip },
-    { x: 0.2, y: -0.02, z, w: 0.3, h: 0.12, d: 0.09, color: k.wing },
-  ];
-}
-
-/** Ekor flamingo (bulu pendek). */
-export function flamingoTailParts(k: CharPalette): Part[] {
-  return [
-    { x: -0.12, y: -0.01, z: 0, w: 0.3, h: 0.1, d: 0.34, color: k.tail },
-    { x: -0.34, y: 0.04, z: 0, w: 0.18, h: 0.1, d: 0.3, color: k.tailTip },
-  ];
-}
-
-/** Kaki flamingo: sangat ramping, telapak berselaput dengan 3 jari. */
-export function flamingoLegParts(k: CharPalette, seg: "thigh" | "shin" | "foot", thighLen: number, shinLen: number): Part[] {
-  if (seg === "thigh") {
-    return [
-      { x: 0, y: 0, z: 0, w: 0.11, h: 0.11, d: 0.11, color: k.feet },
-      { x: 0, y: -thighLen / 2, z: 0, w: 0.09, h: thighLen, d: 0.09, color: k.feet },
-    ];
-  }
-  if (seg === "shin") {
-    return [
-      { x: 0, y: 0, z: 0, w: 0.1, h: 0.1, d: 0.1, color: k.feet },
-      { x: 0, y: -shinLen / 2, z: 0, w: 0.07, h: shinLen, d: 0.07, color: k.feet },
-    ];
-  }
-  return [
-    { x: 0, y: 0.045, z: 0, w: 0.09, h: 0.09, d: 0.09, color: k.feet },
-    { x: 0.03, y: 0.02, z: 0, w: 0.24, h: 0.04, d: 0.12, color: k.feet },
-    { x: 0.15, y: 0.02, z: 0.05, w: 0.1, h: 0.04, d: 0.05, color: k.feet },
-    { x: 0.15, y: 0.02, z: -0.05, w: 0.1, h: 0.04, d: 0.05, color: k.feet },
-    { x: -0.11, y: 0.02, z: 0, w: 0.09, h: 0.04, d: 0.05, color: k.feet },
   ];
 }
 

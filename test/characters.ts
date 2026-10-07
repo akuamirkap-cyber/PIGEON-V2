@@ -73,19 +73,16 @@ check("warna jaket & helm beda per varian", new Set([0, 1, 2].map((v) => motorcy
 check("strip helm senada warna motor", MOTOR_PAINTS.some((c) => bike.some((p) => p.color === c && p.y > 1.35)), "");
 
 /* =============== 2. Karakter baru =============== */
-log.push("=== Karakter baru (kucing, flamingo, gagak) ===");
+log.push("=== Karakter baru (kucing, gagak) ===");
 const cat = getSkin("cat");
-const flamingo = getSkin("flamingo");
 const crow = getSkin("crow");
 check("kucing oranye ada di daftar karakter", cat.kind === "cat" && cat.id === "cat", `${cat.name}`);
-check("flamingo ada di daftar karakter", flamingo.kind === "flamingo" && flamingo.id === "flamingo", `${flamingo.name}`);
 check("gagak ada di daftar karakter", crow.kind === "crow" && crow.id === "crow", `${crow.name}`);
-check("ketiganya gratis (langsung bisa dipakai)", [cat, flamingo, crow].every((k) => k.cost === 0), "");
+check("ketiganya gratis (langsung bisa dipakai)", [cat, crow].every((k) => k.cost === 0), "");
 check("warna kucing oranye", cat.body.toLowerCase() === "#ff8c42", cat.body);
-check("warna flamingo pink", flamingo.body.toLowerCase().includes("c4") || flamingo.body.toLowerCase().includes("ff9e"), flamingo.body);
 check("warna gagak hitam", crow.body.toLowerCase() === "#23262e", crow.body);
 
-for (const k of [cat, flamingo, crow]) {
+for (const k of [cat, crow]) {
   const body = charBodyParts(k);
   const head = charHeadParts(k);
   const tail = charTailParts(k);
