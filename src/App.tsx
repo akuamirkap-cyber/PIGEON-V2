@@ -108,6 +108,12 @@ export default function App() {
     }, 900);
   };
 
+  // Panel seleksi skin punya tampilan sendiri (latar biru ala Crossy Road) —
+  // switcher mode game disembunyikan supaya layarnya bersih seperti referensi.
+  const phase = useUI((s) => s.phase);
+  const menuView = useUI((s) => s.menuView);
+  const hideModeSwitcher = gameMode === "pigeon" && phase === "menu" && menuView === "skins";
+
   useEffect(() => {
     if (gameMode !== "pigeon") return;
     // pre-render the 3D skin and deck thumbnails lazily after game is running smoothly
@@ -125,7 +131,8 @@ export default function App() {
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-[#151823]">
       {/* ── Floating Game Mode Switcher Bar ── */}
-      <div className="fixed top-2.5 left-1/2 -translate-x-1/2 z-50 flex items-center p-1 rounded-full bg-white/75 border border-white/90 shadow-[0_4px_14px_rgba(34,77,104,0.2)] backdrop-blur-md font-sans">
+      {!hideModeSwitcher && (
+        <div className="fixed top-2.5 left-1/2 -translate-x-1/2 z-50 flex items-center p-1 rounded-full bg-white/75 border border-white/90 shadow-[0_4px_14px_rgba(34,77,104,0.2)] backdrop-blur-md font-sans">
         <button
           type="button"
           onClick={() => switchGameMode("pigeon")}
@@ -165,7 +172,8 @@ export default function App() {
           <span>🦊</span>
           <span>VOXEL BUDDIES</span>
         </button>
-      </div>
+        </div>
+      )}
 
       {gameMode === "shibuya" ? (
         <ShibuyaApp onBackToPigeon={() => switchGameMode("pigeon")} />

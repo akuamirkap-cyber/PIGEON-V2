@@ -169,6 +169,47 @@ body,
   }
 }
 
+/* Judul GAME OVER ala Crossy Road: huruf pixel PUTIH + outline hitam tebal (tanpa ekstrusi 3D). */
+.go-title {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.13em #11151f;
+  text-shadow: 0 0.05em 0 #11151f;
+}
+
+/* Sembunyikan scrollbar native (barisan karakter/papan digulir pakai gesture) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Pita biru seleksi karakter ala Crossy Road: sisi bawah berlekuk + lipatan gelap di sudut. */
+.ribbon-banner {
+  position: relative;
+  z-index: 1;
+  padding: 0.5rem 2.6rem 0.62rem;
+  background: linear-gradient(180deg, #4bb9f3 0%, #2f9fe0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 66%, 87% 100%, 13% 100%, 0 66%);
+  filter: drop-shadow(0 3px 0 rgba(16, 58, 98, 0.28));
+}
+.ribbon-fold {
+  position: absolute;
+  bottom: -0.5rem;
+  z-index: 0;
+  width: 1.35rem;
+  height: 0.85rem;
+  background: #1b7bb8;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.ribbon-fold-l {
+  left: 9%;
+}
+.ribbon-fold-r {
+  right: 9%;
+}
+
 /* ---------- GAME OVER hypercasual juice ---------- */
 /* Badge NEW BEST model STARBURST gigi bintang (tanpa glow) */
 .go-starburst {

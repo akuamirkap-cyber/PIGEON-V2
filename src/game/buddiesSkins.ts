@@ -255,8 +255,27 @@ export const GOLDEN_RATIO_BUDDIES = new Set<string>([
   "capybara",
 ]);
 
+/**
+ * Faktor skala khusus yang DIPOKOK per karakter (menimpa hitungan golden ratio).
+ * Diminta lebih kecil jadi 0.68:
+ * Baby Polar Bear, Baby Beaver, Baby Teddy Bear, Red Panda, Capybara,
+ * Baby Shiba Inu, Tanuki, Panda.
+ */
+export const BUDDY_SCALE_OVERRIDES: Record<string, number> = {
+  polarbear: 0.68,
+  beaver: 0.68,
+  teddy: 0.68,
+  redpanda: 0.68,
+  capybara: 0.68,
+  shiba: 0.68,
+  tanuki: 0.68,
+  panda: 0.68,
+};
+
 /** Mendapatkan faktor skala proporsional untuk Voxel Buddy */
 export function getBuddyScaleFactor(buddyId: string): number {
+  const override = BUDDY_SCALE_OVERRIDES[buddyId];
+  if (override !== undefined) return override;
   if (buddyId === "manekineko") return 0.76;
   if (buddyId === "fennec") return 0.78;
   const buddy = BUDDIES_SKINS.find((s) => s.id === buddyId);
@@ -415,7 +434,11 @@ export function buildBuddyRig(buddyId: string): BuddyRig {
   // Hewan golden ratio lebarnya mengikuti lebar Monkey, tingginya menyesuaikan ukuran natural.
   // Buddies lainnya tetap default 0.88.
   let scaleFactor = isGoldenRatio ? (0.932 / (rawW * 0.24)) : 0.88;
-  if (buddyId === "manekineko") {
+  const scaleOverride = BUDDY_SCALE_OVERRIDES[buddyId];
+  if (scaleOverride !== undefined) {
+    // Ukuran dipatok user (0.68) — menimpa golden ratio & default
+    scaleFactor = scaleOverride;
+  } else if (buddyId === "manekineko") {
     // Ukuran Maneki Neko disamakan persis dengan ukuran Monkey (tidak lagi kebesaran)
     scaleFactor = 0.76;
   } else if (buddyId === "fennec") {

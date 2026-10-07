@@ -10,11 +10,6 @@ import {
   crowHeadParts,
   crowTailParts,
   crowWingParts,
-  flamingoBodyParts,
-  flamingoHeadParts,
-  flamingoLegParts,
-  flamingoTailParts,
-  flamingoWingParts,
   type CharPalette,
 } from "./chars";
 
@@ -22,7 +17,7 @@ export type HatKind = "cap" | "crown" | "mohawk" | "headband" | "beanie" | "viso
 export type AccessoryKind = "none" | "mailbag" | "hoodie";
 export type DeckKind = "standard" | "baguette" | "hoverboard" | "broom" | "silver";
 /** Spesies karakter yang bisa dimainkan. `undefined` di Skin berarti merpati. */
-export type CharKind = "pigeon" | "cat" | "flamingo" | "crow" | "duck" | "panda" | "dino" | "frog" | "shiba" | "littleJapanFriend" | "buddy";
+export type CharKind = "pigeon" | "cat" | "crow" | "duck" | "panda" | "dino" | "frog" | "shiba" | "littleJapanFriend" | "buddy";
 
 export type DeckId =
   | "default"
@@ -259,13 +254,6 @@ export const SKINS: Skin[] = [
     wing: "#c77d92", wingTip: "#8a4b60", tail: "#c77d92", tailTip: "#8a4b60", beak: "#d64d7a", cere: "#ffffff", feet: ORANGE,
     deck: "#9b5de5", wheels: "#fff1d6",
   },
-  {
-    // FLAMINGO — badan kecil + leher panjang, paruh melengkung dengan ujung hitam
-    id: "flamingo", name: "Flamingo", tagline: "Flamingo pink berleher panjang (Free)", cost: 0, kind: "flamingo",
-    body: "#ff9ec4", belly: "#ffd3e4", head: "#ff9ec4", neck1: "#ff86b6", neck2: "#ffd3e4",
-    wing: "#ff8fb8", wingTip: "#e2619a", tail: "#ff8fb8", tailTip: "#e2619a", beak: "#f7d8c4", cere: "#ffe0ef", feet: "#ff9f45",
-    deck: "#ff70a6", wheels: "#1c1e22",
-  },
   ...LITTLE_JAPAN_FRIEND_SKINS,
   ...BUDDY_SKIN_OPTIONS,
 ];
@@ -274,7 +262,7 @@ export function getSkin(id: string): Skin {
   return SKINS.find((s) => s.id === id || s.buddyId === id) ?? SKINS[0];
 }
 
-/* ---------- Dispatcher model per spesies (merpati / kucing / flamingo / gagak) ---------- */
+/* ---------- Dispatcher model per spesies (merpati / kucing / gagak) ---------- */
 
 /** Semua karakter bisa berbagi palet warna yang sama; modelnya beda per spesies. */
 const pal = (k: Skin): CharPalette => k;
@@ -336,8 +324,6 @@ export function charBodyParts(k: Skin): Part[] {
   switch (k.kind) {
     case "cat":
       return catBodyParts(pal(k));
-    case "flamingo":
-      return flamingoBodyParts(pal(k));
     case "crow":
       return crowBodyParts(pal(k));
     case "duck":
@@ -356,8 +342,6 @@ export function charHeadParts(k: Skin): Part[] {
   switch (k.kind) {
     case "cat":
       return catHeadParts(pal(k));
-    case "flamingo":
-      return flamingoHeadParts(pal(k));
     case "crow":
       return crowHeadParts(pal(k));
     case "duck": case "panda": case "dino": case "frog": case "shiba":
@@ -372,8 +356,6 @@ export function charWingParts(k: Skin, side: 1 | -1): Part[] {
   switch (k.kind) {
     case "cat":
       return catArmParts(pal(k), side);
-    case "flamingo":
-      return flamingoWingParts(pal(k), side);
     case "crow":
       return crowWingParts(pal(k), side);
     case "duck": case "panda": case "dino": case "frog": case "shiba":
@@ -388,8 +370,6 @@ export function charTailParts(k: Skin): Part[] {
   switch (k.kind) {
     case "cat":
       return catTailParts(pal(k));
-    case "flamingo":
-      return flamingoTailParts(pal(k));
     case "crow":
       return crowTailParts(pal(k));
     case "duck":
@@ -433,8 +413,6 @@ export function charLegParts(k: Skin, seg: "thigh" | "shin" | "foot", thighLen: 
   switch (k.kind) {
     case "cat":
       return catLegParts(pal(k), seg, thighLen, shinLen);
-    case "flamingo":
-      return flamingoLegParts(pal(k), seg, thighLen, shinLen);
     default:
       return pigeonLegParts(k, seg, thighLen, shinLen);
   }
