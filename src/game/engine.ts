@@ -204,6 +204,35 @@ export interface OverpassCar {
 
 export type ObstacleKind = "cone" | "trash" | "barrier" | "bench" | "boxes" | "planter" | "car" | "ramp" | "rail" | "fence" | "dirt" | "jackhammer" | "worker";
 
+/**
+ * Material-to-rail slide styles. The style is selected automatically at the
+ * instant the deck locks onto a rail, so the player never has to open a menu
+ * or press a second button to pose the skater.
+ */
+export type SlideStyle = "boardslide" | "lipslide" | "noseslide";
+
+export const SLIDE_STYLE_INFO: Record<SlideStyle, {
+  label: string;
+  color: string;
+  detail: string;
+}> = {
+  boardslide: {
+    label: "BOARDSLIDE",
+    color: "#ff9f1c",
+    detail: "bagian tengah papan di atas rail",
+  },
+  lipslide: {
+    label: "LIPSLIDE",
+    color: "#ff5c8a",
+    detail: "truck belakang melewati rail dulu",
+  },
+  noseslide: {
+    label: "NOSESLIDE",
+    color: "#4cc9f0",
+    detail: "ujung depan papan menggesek rail",
+  },
+};
+
 /** halfLen/height drive physics; `hit` is the (forgiving) collision height. */
 export const OBSTACLE_DEFS: Record<ObstacleKind, { halfLen: number; height: number; hit: number }> = {
   cone: { halfLen: 0.35, height: 0.6, hit: 0.42 },
@@ -901,6 +930,12 @@ class Engine {
     grounded: true,
     grinding: false,
     rail: null as Obstacle | null,
+    /** Active material-to-rail style; set automatically when a rail is caught. */
+    slideStyle: null as SlideStyle | null,
+    /** Which side of the rail the board enters from (-1 / +1), used to mirror the pose. */
+    slideSide: 1,
+    /** 0..1 progress from the near end of the rail to the far end. */
+    slideProgress: 0,
     carMover: null as Mover | null,
     carObstacle: null as Obstacle | null,
     subwayMover: null as SubwayTrain | null,
@@ -1050,6 +1085,9 @@ class Engine {
     p.grounded = true;
     p.grinding = false;
     p.rail = null;
+    p.slideStyle = null;
+    p.slideSide = 1;
+    p.slideProgress = 0;
     p.carMover = null;
     p.carObstacle = null;
     p.subwayMover = null;
@@ -1117,6 +1155,9 @@ class Engine {
     p.trick = null;
     p.flip = 0;
     p.grinding = false;
+    p.rail = null;
+    p.slideStyle = null;
+    p.slideProgress = 0;
     p.carMover = null;
     p.carObstacle = null;
     p.subwayMover = null;
@@ -1480,11 +1521,50 @@ class Engine {
     return RAIL_H;
   }
 
+  /**
+   * Pick a slide from the actual contact geometry instead of a random label:
+   *
+   * - a ramp launch / a high, descending catch means the skater cleared the
+   *   rail first, so the rear truck leads into a lipslide;
+   * - a low catch right at the near end leaves the nose as the first wood on
+   *   the steel, so it becomes a noseslide;
+   * - every other clean centre catch is the classic boardslide.
+   *
+   * This keeps the three poses playable without adding another input button.
+   */
+  private pickSlideStyle(rail: Obstacle): SlideStyle {
+    const p = this.player;
+    const half = obstacleHalf(rail);
+    const contact = clamp((this.distance - (rail.s - half)) / Math.max(0.001, half * 2), 0, 1);
+    const railHeight = this.railHeightAt(rail, this.distance);
+    const descending = p.vh < -0.45;
+    // A late descending catch means the deck has already travelled over most
+    // of the rail before locking in. A ramp launch is the clearest version of
+    // the same move and is kept as a lipslide even on a short rail.
+    const clearedRail = p.bigAir || (descending && p.airT > 0.45 && contact > 0.74);
+    if (clearedRail) return "lipslide";
+
+    // A nose catch is deliberately forgiving: the player only has to catch
+    // the first third of the rail while staying close to its top surface.
+    const noseFirst = contact < 0.36 && p.h <= railHeight + 0.28;
+    if (noseFirst) return "noseslide";
+    return "boardslide";
+  }
+
+  /** Mirror frontside/backside-looking slide poses without changing physics lanes. */
+  private slideSide(rail: Obstacle): 1 | -1 {
+    if (Math.abs(this.player.latVel) > 0.08) return this.player.latVel >= 0 ? 1 : -1;
+    return rail.id % 2 === 0 ? 1 : -1;
+  }
+
   private startGrind(rail: Obstacle) {
     const p = this.player;
     p.grinding = true;
     p.grounded = false;
     p.rail = rail;
+    p.slideStyle = this.pickSlideStyle(rail);
+    p.slideSide = this.slideSide(rail);
+    p.slideProgress = clamp((this.distance - (rail.s - obstacleHalf(rail))) / Math.max(0.001, obstacleHalf(rail) * 2), 0, 1);
     p.h = this.railHeightAt(rail, this.distance);
     p.vh = 0;
     p.grindPts = 0;
@@ -1492,21 +1572,25 @@ class Engine {
       p.trick.t = p.trick.dur;
       this.completeTrick();
     }
-    useUI.getState().addPopup("GRIND!", "#ff9f1c");
+    const style = SLIDE_STYLE_INFO[p.slideStyle ?? "boardslide"];
+    useUI.getState().addPopup(style.label, style.color, style.detail);
     sfx.grind();
   }
 
   private endGrind() {
     const p = this.player;
     if (!p.grinding) return;
+    const style = p.slideStyle ? SLIDE_STYLE_INFO[p.slideStyle] : SLIDE_STYLE_INFO.boardslide;
     p.grinding = false;
     p.rail = null;
+    p.slideStyle = null;
+    p.slideProgress = 0;
     p.railGrace = 0.3;
     const base = Math.max(10, Math.round(p.grindPts / 10) * 10);
     p.tricksThisAir++;
     const pts = base * p.tricksThisAir;
     this.trickScore += pts;
-    useUI.getState().addPopup(`GRIND +${pts}`, "#ff9f1c", p.tricksThisAir > 1 ? `COMBO x${p.tricksThisAir}` : undefined);
+    useUI.getState().addPopup(`${style.label} +${pts}`, style.color, p.tricksThisAir > 1 ? `COMBO x${p.tricksThisAir}` : undefined);
     sfx.trick();
   }
 
@@ -1524,6 +1608,8 @@ class Engine {
       }
     }
     p.rail = null;
+    p.slideStyle = null;
+    p.slideProgress = 0;
     p.h = CAR_ROOF_H;
     p.vh = 0;
     p.squash = 0.4;
@@ -1569,6 +1655,8 @@ class Engine {
     p.carMover = null;
     p.carObstacle = null;
     p.rail = null;
+    p.slideStyle = null;
+    p.slideProgress = 0;
     p.bigAir = false;
     p.h = SUBWAY_ROOF_H;
     p.vh = 0;
@@ -1664,6 +1752,9 @@ class Engine {
     this.slowMo = 0.24;
     p.trick = null;
     p.grinding = false;
+    p.rail = null;
+    p.slideStyle = null;
+    p.slideProgress = 0;
     p.carMover = null;
     p.carObstacle = null;
     p.subwayMover = null;
@@ -2053,11 +2144,12 @@ class Engine {
         p.airT = 0;
       } else {
         p.h = this.railHeightAt(r, d);
+        p.slideProgress = clamp((d - (r.s - obstacleHalf(r))) / Math.max(0.001, obstacleHalf(r) * 2), 0, 1);
         p.grindPts += dt * 100;
         this.sparkT += dt;
         if (this.sparkT > 0.05) {
           this.sparkT = 0;
-          this.emit("spark", -0.5, 0.55, p.lat, 2);
+          this.emit("spark", -0.5, p.h - 0.02, p.lat, 2);
         }
       }
     }

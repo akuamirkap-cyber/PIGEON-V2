@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { buildVoxelGeometry, clamp, rand, voxelMaterial } from "./voxel";
-import { engine, LANE_LAT } from "./engine";
+import { engine, LANE_LAT, type SlideStyle } from "./engine";
 import { useUI } from "./store";
 import { charBodyParts, charHeadParts, charTailParts, charWingParts, deckParts, getSkin, truckParts, wheelParts, HIP_Y, LEG_Z, TAIL_ROOT } from "./skins";
 import { RIG, LegRig } from "./pigeonRig";
@@ -415,6 +415,8 @@ export function Player() {
   /** sudut kepala yang dihaluskan (low-pass): fokus ke depan + memantau situasi, santai */
   const headLook = useRef({ yaw: 0, pitch: 0 });
   const contactK = useRef(0); // 0 airborne .. 1 rolling on the ground/rail (smoothed so takeoff/landing do not pop)
+  /** The rail style is chosen by the engine; keep the last one for a smooth dismount back to normal riding. */
+  const slidePose = useRef<{ style: SlideStyle | null; side: 1 | -1; mix: number }>({ style: null, side: 1, mix: 0 });
   const truckFront = useRef<THREE.Group>(null);
   const truckRear = useRef<THREE.Group>(null);
 
@@ -492,14 +494,63 @@ export function Player() {
 
     const nm = engine.newTurn; // physics turning mode
     const spr = engine.sprint; // 0..1 SHIFT sprint intensity (fast kicks, forward lean)
+
+    // Rail contact is a material-first animation state. The engine decides
+    // boardslide / lipslide / noseslide from the way the rail was caught; the
+    // renderer turns that decision into a mirrored board + character pose.
+    const railSlideActive = p.grinding && p.rail !== null && p.slideStyle !== null;
+    const slide = slidePose.current;
+    if (p.slideStyle) {
+      slide.style = p.slideStyle;
+      slide.side = p.slideSide >= 0 ? 1 : -1;
+    }
+    const slideTarget = railSlideActive ? 1 : 0;
+    slide.mix += (slideTarget - slide.mix) * (1 - Math.exp(-dt * 14));
+    if (slide.mix < 0.002 && !railSlideActive) slide.style = null;
+    const slideStyle = slide.style;
+    const slideSide = slide.side;
+    const slideMix = slide.mix;
+    // Board long axis is +x. Rails run along +x, so a slide turns the deck
+    // 90 degrees; the signed offset makes only the rear truck or the nose sit
+    // over the steel for the two directional styles.
+    const slideYaw = slideStyle ? slideSide * Math.PI / 2 * slideMix : 0;
+    const slideOffset = slideStyle === "lipslide"
+      ? -slideSide * 0.56 * slideMix
+      : slideStyle === "noseslide"
+        ? slideSide * 0.56 * slideMix
+        : 0;
+    const slideBodyYaw = slideStyle === "lipslide"
+      ? -slideSide * 0.22 * slideMix
+      : slideStyle === "noseslide"
+        ? slideSide * 0.32 * slideMix
+        : 0;
+    const slideCrouch = slideStyle === "noseslide"
+      ? 0.09 * slideMix
+      : slideStyle === "lipslide"
+        ? 0.07 * slideMix
+        : 0.045 * slideMix;
+    const slideForward = slideStyle === "noseslide"
+      ? -0.18 * slideMix
+      : slideStyle === "lipslide"
+        ? 0.06 * slideMix
+        : 0;
+
     if (nm) {
       // wheel radius ~0.065: spin = speed / r; 0.3x while grinding rails (wheels barely turn), 1.0x on bus roof, 0.6x airborne (freewheel).
       // The per-frame step is capped so a fast board does not alias into a flickering wheel.
       const mult = p.subwayMover ? 1 : p.grinding ? 0.3 : p.grounded ? 1 : 0.6;
       const spin = Math.min((engine.speed / 0.065) * dt * mult, 1.2);
-      for (const w of wheels.current) if (w) w.rotation.z -= spin;
+      for (const w of wheels.current) {
+        if (!w) continue;
+        w.visible = !wheellessDeck && !railSlideActive;
+        if (w.visible) w.rotation.z -= spin;
+      }
     } else {
-      for (const w of wheels.current) if (w) w.rotation.z -= engine.speed * dt * 7;
+      for (const w of wheels.current) {
+        if (!w) continue;
+        w.visible = !wheellessDeck && !railSlideActive;
+        if (w.visible) w.rotation.z -= engine.speed * dt * 7;
+      }
     }
 
     // ---- truck steering (the physics of a real carve) ----
@@ -510,6 +561,10 @@ export function Player() {
       const tf = truckFront.current;
       const trr = truckRear.current;
       if (tf && trr) {
+        // On a wood-on-steel slide the trucks and wheels hang below the deck;
+        // hide them so the contact reads as the board itself rubbing the rail.
+        tf.visible = !wheellessDeck && !railSlideActive;
+        trr.visible = !wheellessDeck && !railSlideActive;
         if (crashed) {
           tf.rotation.y = 0;
           trr.rotation.y = 0;
@@ -574,7 +629,11 @@ export function Player() {
       // origin and moving the group by (0, z0 sin(roll), z0 (1 - cos(roll))). z0 = wheel offset + half wheel width.
       contactK.current += ((p.grounded || p.grinding ? 1 : 0) - contactK.current) * (1 - Math.exp(-dt * 14));
       const z0 = (p.roll >= 0 ? 1 : -1) * (RIG.wheelZ + 0.07);
-      bk.position.set(0, contactK.current * z0 * Math.sin(p.roll), contactK.current * z0 * (1 - Math.cos(p.roll)));
+      bk.position.set(
+        0,
+        contactK.current * z0 * Math.sin(p.roll),
+        contactK.current * z0 * (1 - Math.cos(p.roll)) + slideOffset,
+      );
       const tr = p.trick;
       const g = p.grab; // +1 method (board pulled up behind), -1 indy (board tucked under)
       const grabLift = g > 0 ? g * 0.25 : 0;
@@ -590,7 +649,17 @@ export function Player() {
       // board yaws into the carve (nose points where the pigeon is going) on top of any trick rotation
       // NEW: in the air the feet steer the board, so it tilts a little MORE than the body (lean * 0.2)
       const airTilt = nm ? lv * 0.2 * p.airBlend : 0;
-      bd.rotation.set(p.flip + (g > 0 ? g * 0.9 : 0) + airTilt, p.boardYaw + p.boardTwist, p.pitch + (g < 0 ? g * 0.35 : 0) + p.boardPitch);
+      const slideDeckTilt = slideStyle === "lipslide"
+        ? slideSide * 0.08 * slideMix
+        : slideStyle === "noseslide"
+          ? -slideSide * 0.06 * slideMix
+          : 0;
+      const slideNoseDip = slideStyle === "noseslide" ? 0.08 * slideMix : 0;
+      bd.rotation.set(
+        p.flip + (g > 0 ? g * 0.9 : 0) + airTilt + slideDeckTilt,
+        p.boardYaw + p.boardTwist + slideYaw,
+        p.pitch + (g < 0 ? g * 0.35 : 0) + p.boardPitch + slideNoseDip,
+      );
 
       let hop = 0;
       // semua trick flip/shuv-family mendapat "pop" papan naik-turun ala ollie
@@ -619,8 +688,8 @@ export function Player() {
       const crouch = g > 0 ? g * 0.12 : g < 0 ? -g * 0.1 : 0;
       const s = p.squash;
       // Move rider together with the board so feet stay planted instead of clipping through it.
-      pg.position.set(0, RIG.pigeonY + hop - crouch - dip + grabLift + grabTuck + floatLift, -0.03 * out);
-      pg.rotation.set(0, 0, p.pitch * 0.5 + (g > 0 ? g * 0.35 : 0) + (g < 0 ? g * 0.25 : 0));
+      pg.position.set(0, RIG.pigeonY + hop - crouch - dip - slideCrouch + grabLift + grabTuck + floatLift, -0.03 * out);
+      pg.rotation.set(0, slideBodyYaw, p.pitch * 0.5 + (g > 0 ? g * 0.35 : 0) + (g < 0 ? g * 0.25 : 0));
       pg.scale.set(PS * (1 + 0.18 * s), PS * (1 - 0.32 * s + idle), PS * (1 + 0.18 * s));
 
       if (friendModel.current && friendRig) {
@@ -629,7 +698,7 @@ export function Player() {
         // individual tail, arms, wings, head, and legs underneath.
         const jumpPose = airborne ? Math.min(1, p.airT * 7) : 0;
         friendModel.current.position.y = 0.018 * jumpPose;
-        friendModel.current.rotation.set(-0.14 * jumpPose + p.pitch * 0.22, p.boardYaw * 0.12, p.roll * 0.18);
+        friendModel.current.rotation.set(-0.14 * jumpPose + p.pitch * 0.22, p.boardYaw * 0.12 + slideBodyYaw * 0.65, p.roll * 0.18);
         friendModel.current.scale.set(
           1 + 0.035 * jumpPose,
           1 - 0.075 * jumpPose,
@@ -644,7 +713,7 @@ export function Player() {
       if (buddyModel.current && buddyRig) {
         const jumpPose = airborne ? Math.min(1, p.airT * 7) : 0;
         buddyModel.current.position.set(pigeonPosX, pigeonPosY + 0.018 * jumpPose, 0);
-        buddyModel.current.rotation.set(-0.14 * jumpPose + p.pitch * 0.22, p.boardYaw * 0.12, p.roll * 0.18);
+        buddyModel.current.rotation.set(-0.14 * jumpPose + p.pitch * 0.22, p.boardYaw * 0.12 + slideBodyYaw * 0.65, p.roll * 0.18);
         const bs = 0.24 * pigeonSize * buddyScale * buddyRig.scaleFactor;
         buddyModel.current.scale.set(
           bs * (1 + 0.035 * jumpPose),
@@ -664,7 +733,22 @@ export function Player() {
         const grabbing = Math.abs(g) > 0.05 && tr?.kind !== "christ";
         const flapTrick = tr?.kind === "wingflap";
         const christTrick = tr?.kind === "christ";
-        if (u >= 0) {
+        if (p.grinding && p.rail && slideStyle) {
+          // Automatic material-to-rail poses:
+          // boardslide = low, centred and balanced;
+          // lipslide = chest opens toward the rear-truck entry;
+          // noseslide = weight reaches forward to the nose.
+          if (slideStyle === "boardslide") {
+            rxL = 0.16; rxR = 0.16;
+            spL = 0.54; spR = 0.54;
+          } else if (slideStyle === "lipslide") {
+            rxL = -0.08; rxR = 0.33;
+            spL = 0.72; spR = 0.28;
+          } else {
+            rxL = -0.18; rxR = 0.55;
+            spL = 0.82; spR = 0.10;
+          }
+        } else if (u >= 0) {
           // ayunan balik mengikuti hentakan kaki (mirroring pushSwing sayap merpati)
           const swing = 0.4 * (1 + 0.8 * spr) * Math.sin(Math.PI * Math.min(1, u));
           rxL -= swing;
@@ -761,7 +845,14 @@ export function Player() {
         //  - torso rolls LESS than the board (counter-roll -lean*0.14) so the head stays over the deck
         //  - hips slide toward the inside of the turn (lean * 0.06)
         //  - head counter-rolls (-lean*0.22) to keep the horizon level and looks into the turn (yaw - lean*0.35)
-        leanTorso(-0.12 * out - lv * 0.14, -0.2 * drive - 0.04 * out - 0.14 * spr, 0.04 * drive + 0.03 * spr, -0.02 * drive, -0.05 * out + lv * 0.06, 0);
+        leanTorso(
+          -0.12 * out - lv * 0.14 + slideForward,
+          -0.2 * drive - 0.04 * out - 0.14 * spr,
+          0.04 * drive + 0.03 * spr,
+          -0.02 * drive - slideCrouch * 0.35,
+          -0.05 * out + lv * 0.06,
+          slideBodyYaw * 0.5,
+        );
         // head bob halus yang selalu menempel pada leher (RIG.headPos)
         hd.position.set(RIG.headPos[0] + bob * 0.02, RIG.headPos[1] + Math.abs(bob) * 0.015, 0);
         hd.rotation.set(hl.pitch - lv * 0.1, hl.yaw, grounded ? -0.06 * drive : -0.12);
@@ -769,7 +860,14 @@ export function Player() {
         // extra torso roll INTO the turn (rotation.x > 0 tips the top toward +z, so it is -carve)
         const torsoCarve = -carve * (airborne ? 0.55 : 0.35);
         const hipShift = Math.sign(p.latVel) * Math.min(1, Math.abs(p.latVel) / 6) * (airborne ? 0.1 : 0.06);
-        leanTorso(-0.12 * out + torsoCarve, -0.2 * drive - 0.04 * out - 0.14 * spr + 0.12 * shift, 0.04 * drive + 0.03 * spr, -0.02 * drive - 0.03 * shift, -0.05 * out + hipShift, -p.steer * 0.35);
+        leanTorso(
+          -0.12 * out + torsoCarve + slideForward,
+          -0.2 * drive - 0.04 * out - 0.14 * spr + 0.12 * shift,
+          0.04 * drive + 0.03 * spr,
+          -0.02 * drive - 0.03 * shift - slideCrouch * 0.35,
+          -0.05 * out + hipShift,
+          -p.steer * 0.35 + slideBodyYaw * 0.5,
+        );
         // head bob halus yang selalu menempel pada leher (RIG.headPos)
         hd.position.set(RIG.headPos[0] + bob * 0.02, RIG.headPos[1] + Math.abs(bob) * 0.015, 0);
         hd.rotation.set(hl.pitch - carve * 0.18, hl.yaw, grounded ? -0.06 * drive : -0.12);
@@ -1012,7 +1110,18 @@ export function Player() {
       // carving on the ground: the outside wing opens a bit for balance; in the air both spread and the
       // leading wing reaches toward the new lane
       const a = p.wing * (base + flap) + pushSwing;
-      if (nm) {
+      if (railSlideActive && slideStyle) {
+        if (slideStyle === "boardslide") {
+          wr.rotation.x = -0.42; wl.rotation.x = 0.42;
+          wr.rotation.z = -0.12 * slideSide; wl.rotation.z = 0.12 * slideSide;
+        } else if (slideStyle === "lipslide") {
+          wr.rotation.x = -0.78; wl.rotation.x = 0.18;
+          wr.rotation.z = -0.28 * slideSide; wl.rotation.z = 0.08 * slideSide;
+        } else {
+          wr.rotation.x = -0.16; wl.rotation.x = 0.78;
+          wr.rotation.z = -0.05 * slideSide; wl.rotation.z = 0.32 * slideSide;
+        }
+      } else if (nm) {
         // NEW: the OUTER wing (opposite the lean) lifts a little on hard carves: |lean| * 0.5 on the ground, * 0.35 in the air.
         // wr is the +z wing (screen right), wl the -z wing; leaning right (lean > 0) => the left wing is the outer one.
         const lv2 = engine.turn.leanVis;
